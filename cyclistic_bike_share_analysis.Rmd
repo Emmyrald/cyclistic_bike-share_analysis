@@ -1,0 +1,130 @@
+---
+title: "Cyclistic Bike-Share Analysis"
+author: "Fuhad Lawal"
+date: "`r Sys.Date()`"
+output:
+  html_document:
+    toc: true
+    toc_depth: 3
+    theme: cosmo
+---
+
+## 1. Introduction
+
+The objective of this analysis is to explore usage patterns within the Cyclist bike-share dataset, focusing on behavioral differences between casual riders and annual members.
+
+## 2. Libraries and Setup
+
+```{r setup, message=FALSE, warning=FALSE}
+library(tidyverse)
+library(dplyr)
+library(lubridate)
+```
+
+## 3. Data Loading
+
+```{r load-data, message=FALSE, warning=FALSE}
+bike <- read_csv("cyclist_bike-share.csv")
+str(bike)
+```
+
+## 4. Data Cleaning and Feature Engineering
+
+```{r cleaning}
+rides <- bike %>%
+  mutate(
+    started_at = ymd_hms(started_at),
+    ended_at = ymd_hms(ended_at)
+  ) %>%
+  filter(!is.na(started_at), ride_length > 0) %>%
+  mutate(
+    weekday = wday(started_at, label = TRUE, abbr = FALSE)
+  )
+
+rides$weekday <- factor(
+  rides$weekday,
+  levels = c("Monday","Tuesday","Wednesday",
+             "Thursday","Friday","Saturday","Sunday")
+)
+```
+
+## 5. Rider Type Summary
+
+```{r rider-summary}
+rides %>%
+  group_by(member_casual) %>%
+  summarise(
+    total_rides = n(),
+    avg_duration = mean(ride_length),
+    median_duration = median(ride_length),
+    avg_distance = mean(aprox_distance, na.rm = TRUE)
+  )
+```
+
+## 6. Weekly Ride Patterns
+
+```{r weekday-summary}
+rides_per_day <- rides %>%
+  group_by(weekday, member_casual) %>%
+  summarise(
+    rides = n(),
+    average_dur = mean(ride_length),
+    .groups = "drop"
+  )
+```
+
+```{r weekday-plot}
+ggplot(rides_per_day, aes(weekday, rides, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Number of Rides by Weekday and Rider Type",
+    x = "Day of the Week",
+    y = "Total Rides"
+  )
+```
+
+## 7. Time of Day Patterns
+
+```{r hourly-patterns}
+rides %>%
+  mutate(hour = hour(started_at)) %>%
+  group_by(hour, member_casual) %>%
+  summarise(rides = n(), .groups = "drop")
+```
+
+## 8. Bike Type Preference
+
+```{r bike-preference}
+bike_pref <- rides %>%
+  group_by(member_casual, rideable_type) %>%
+  summarise(n = n(), .groups = "drop_last") %>%
+  mutate(percent = n / sum(n) * 100)
+
+bike_pref
+```
+
+```{r bike-preference-plot}
+ggplot(bike_pref, aes(rideable_type, percent, fill = member_casual)) +
+  geom_col(position = "dodge") +
+  labs(
+    title = "Bike Type Preference by Rider Type",
+    x = "Bike Type",
+    y = "Percentage of Rides"
+  )
+```
+
+## 9. Ride Duration vs Distance
+
+```{r duration-distance}
+ggplot(rides, aes(ride_length, aprox_distance, color = member_casual)) +
+  geom_point(alpha = 0.1) +
+  labs(
+    title = "Ride Duration vs Distance",
+    x = "Ride Duration",
+    y = "Approximate Distance"
+  )
+```
+
+## 10. Conclusion
+
+This analysis highlights distinct behavioral patterns between casual riders and members, providing insights that can inform membership conversion strategies and operational planning.
